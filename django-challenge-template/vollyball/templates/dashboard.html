@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            display: flex;
+        }
+
+        h2 {
+            color: #f1f1f1;
+            display: flex;
+            justify-content: center;
+        }
+
+        nav {
+            display: flex;
+            flex-direction: column;
+            width: 250px;
+            background-color: #555;
+            border-radius: 10px;
+            height: 100%
+        }
+
+        .main-content {
+            display: flex;
+            padding-left: 30px;
+            flex: 1;
+        }
+
+        .section {
+            padding-left: 20px;
+        }
+
+        .stadium-item {
+            padding-left: 10px;
+            padding-right: px;
+            padding-top: 5px;
+            padding-bottom: 5px;
+            background-color: #fff;
+            border-radius: 8px;
+            margin: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            width: 100%;
+            text-align: center; 
+        }
+
+        .match-item, .seat-item {
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 8px;
+            margin: 5px 0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+        }
+
+        .stadium-item:hover, .match-item:hover, .seat-item:hover {
+            background-color: #f1f1f1;
+        }
+
+        .add-buttons {
+            padding-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+        }
+
+        #seats-panel {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .seat-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #seat-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 300px;
+            height: 100%;
+            background-color: white;
+            box-shadow: -4px 0 10px rgba(0, 0, 0, 0.1);
+            display: none;
+            padding: 20px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <h2>Stadiums</h2>
+        <div class="main-content">
+            <div class="section" id="stadiums-section">
+                <div id="stadiums"></div>
+                <div class="add-buttons">
+                    <button id="add-stadium-btn">Add a stadium</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="section" id="matches-section" style="display: none;">
+        <h3>Games at <span id="stadium-name"></span></h3>
+        <div id="matches"></div>
+        <div class="add-buttons">
+            <button id="add-match-btn">Add game</button>
+        </div>
+    </div>
+
+    <div class="section" id="seats-section" style="display: none;">
+        <div id="seats-panel">
+            <div class="seat-panel-header">
+                <h2 id="match-name"></h2>
+                <button id="close-seat-panel">Close</button>
+            </div>
+            <div id="seats"></div>
+            <div class="add-buttons">
+                <button id="add-seat-btn">Add seat</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';')
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1))
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    const csrftoken = getCookie('csrftoken')
+
+    function showSection(section) {
+        document.getElementById('stadiums-section').style.display = 'none'
+        document.getElementById('matches-section').style.display = 'none'
+        document.getElementById('seats-section').style.display = 'none'
+
+        if (section === 'stadiums') {
+            document.getElementById('stadiums-section').style.display = 'block'
+            loadStadiums();
+        } else if (section === 'matches') {
+            document.getElementById('matches-section').style.display = 'block'
+        } else if (section === 'seats') {
+            document.getElementById('seats-section').style.display = 'block'
+        }
+    }
+
+    function loadStadiums() {
+        fetch('http://127.0.0.1:8000/api/stadiums/')
+            .then(response => response.json())
+            .then(responseData => {
+                const data = responseData.data || responseData
+                const stadiumsContainer = document.getElementById('stadiums')
+                stadiumsContainer.innerHTML = '';
+                if (data.length > 0) {
+                    data.forEach(stadium => {
+                        const stadiumElement = document.createElement('div')
+                        stadiumElement.classList.add('stadium-item');
+                        stadiumElement.innerHTML = `<h3>${stadium.name}</h3>`
+                        stadiumElement.addEventListener('click', function () {
+                            loadMatches(stadium.id, stadium.name);
+                        });
+                        stadiumsContainer.appendChild(stadiumElement);
+                    });
+                } else {
+                    stadiumsContainer.innerHTML = '<p>No stadiums available.</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading stadiums:', error);
+            });
+    }
+
+    function loadMatches(stadiumId, stadiumName) {
+    fetch(`http://127.0.0.1:8000/api/matches/?stadium_id=${stadiumId}`)
+        .then(response => response.json())
+        .then(data => {
+            const matchesContainer = document.getElementById('matches')
+            const stadiumNameElement = document.getElementById('stadium-name')
+            
+            stadiumNameElement.textContent = stadiumName
+            matchesContainer.innerHTML = ''
+
+            if (data.ok && data.data && data.data.length > 0) {
+                // Exibe os jogos se houver dados
+                data.data.forEach(match => {
+                    const matchElement = document.createElement('div')
+                    matchElement.classList.add('match-item')
+                    matchElement.innerHTML = `<h3>Game: ${match.name}</h3><p>Starts at: ${match.start_at}</p>`;
+                    matchElement.addEventListener('click', function () {
+                        loadSeats(match.id, match.name)
+                    })
+                    matchesContainer.appendChild(matchElement)
+                })
+            } else {
+                matchesContainer.innerHTML = '<p>No matches available for this stadium.</p>'
+            }
+
+            document.getElementById('matches-section').style.display = 'block'
+
+            document.getElementById('add-match-btn').onclick = function () {
+                const matchName = prompt('Enter match name:')
+                const startTime = prompt('Enter start time (e.g. 2025-04-16 15:00:00):')
+                
+                if (matchName && startTime) {
+                    const formData = new FormData()
+                    formData.append('name', matchName)
+                    formData.append('start_at', startTime)
+                    formData.append('stadium_id', stadiumId)
+
+                    fetch('http://127.0.0.1:8000/api/matches/', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-CSRFToken': csrftoken  
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(() => {
+                        alert('Match created!')
+                        loadMatches(stadiumId, stadiumName)
+                    })
+                    .catch(error => {
+                        console.error('Error adding match:', error)
+                        alert('Error adding match. Please try again.')
+                    });
+                } else {
+                    alert('Both match name and start time are required.')
+                }
+            };
+        })
+        .catch(error => {
+            console.error('Error loading matches:', error)
+            alert('Error loading matches. Please try again.')
+        });
+}
+
+    function loadSeats(matchId, matchName) {
+        const seatsContainer = document.getElementById('seats')
+        const matchNameElement = document.getElementById('match-name')
+        matchNameElement.textContent = matchName;
+
+        fetch(`http://127.0.0.1:8000/api/matches/${matchId}/seats`)
+            .then(response => response.json())
+            .then(data => {
+                const seats = data.data || []
+                seatsContainer.innerHTML = ''
+
+                if (seats.length > 0) {
+                    seats.forEach(seat => {
+                        const seatElement = document.createElement('div')
+                        seatElement.classList.add('seat-item')
+                        seatElement.textContent = seat.location
+                        seatsContainer.appendChild(seatElement)
+                    })
+                } else {
+                    seatsContainer.innerHTML = '<p>No seats available for this match.</p>'
+                }
+
+                document.getElementById('seats-section').style.display = 'block'
+
+                window.matchId = matchId
+                window.matchName = matchName
+            })
+    }
+
+    document.getElementById('add-seat-btn').addEventListener('click', function () {
+        const seatNumber = prompt('Enter seat number:')
+        if (seatNumber && window.matchId) {
+            const formData = new FormData()
+            formData.append('location', seatNumber)
+            formData.append('match_id', window.matchId)
+
+            fetch(`http://127.0.0.1:8000/api/matches/${window.matchId}/seats`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrftoken
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.ok) {
+                        alert('Seat created!')
+                        loadSeats(window.matchId, window.matchName)
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed to create seat.'))
+                    }
+                });
+        }
+    });
+
+    document.getElementById('add-stadium-btn').addEventListener('click', function () {
+        const stadiumName = prompt('Enter the name of the stadium:')
+        if (stadiumName) {
+            const formData = new FormData()
+            formData.append('name', stadiumName)
+
+            fetch('http://127.0.0.1:8000/api/stadiums/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrftoken
+                }
+            })
+                .then(response => response.json())
+                .then(() => {
+                    alert('Stadium created!')
+                    loadStadiums()
+                })
+        }
+    })
+
+    document.getElementById('close-seat-panel').addEventListener('click', function () {
+        document.getElementById('seats-section').style.display = 'none'
+    })
+
+    document.addEventListener('DOMContentLoaded', function () {
+        showSection('stadiums')
+    })
+</script>
+
+</body>
+</html>
